@@ -1,0 +1,6 @@
+# This is the base file that all templates will use
+# Note: Add the reboot at the end of the specific distros, else it won't work.
+# Original Source from https://forum.proxmox.com/threads/combining-custom-cloud-init-with-auto-generated.59008/page-3#post-428772
+runcmd:
+    - apt-get update
+    - apt-get install -y qemu-guest-agent gnupg vim
