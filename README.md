@@ -1,10 +1,11 @@
-# proxmox-cloud-init-template-gen
+# ProxMox cloud-init template Generator
 
 Helper scripts for building reusable Proxmox cloud-init templates from upstream cloud images. The tooling keeps local cloud images up to date, assembles a merged cloud-init snippet (including user accounts), and drives `qm` to create or refresh templates with consistent settings.
 
-## Todo Items
-- [ ] Populate the section *Getting Started* with commands and instructions from cloning the directory to adding the keys and passwords then sync the distrobutions, how to test run, examin the output before actually executing it.
-- [ ] Consider forking this repository for public consumption
+## Credits
+- Forum Post that started it all: https://forum.proxmox.com/threads/combining-custom-cloud-init-with-auto-generated.59008/page-3#post-428772
+- Repo that inspired me: https://github.com/UntouchedWagons/Ubuntu-CloudInit-Docs
+- Because Vibe Coding is all the rage, I used OpenAI's Codex to generate most of the code.
 
 ## What This Project Does
 
@@ -23,8 +24,31 @@ Helper scripts for building reusable Proxmox cloud-init templates from upstream 
 ```bash
 apt update && apt install git python-is-python3 pip python3.13-venv -y
 ```
+## Getting Started (a.k.a. “Just Make It Work”)
 
-## Getting started
+1. **Do the boring stuff first**: Prereqs are non-optional. Install all the crap Proxmox doesn't ship: `git`, `python`, `pip`, `venv`, etc. (yes, you need Python 3.9+).
+2. **Clone this repo**: Because copy-pasting raw scripts from the internet into root shells is a vibe, but version control is smarter.
+3. **Edit `users-config.yaml`**: Replace `PETERT_SSH_KEY`, `ANSIBLE_SSH_KEY`, or whatever random junk I left in there. Keep the format. Lose the noise.
+4. **Copy `users.env.sample`**: `cp conf/users.env.sample conf/users.env`
+5. **Match your env vars**: Edit `conf/users.env` to sync with `users-config.yaml`. If they don’t line up, nothing will work and you’ll deserve it.
+6. **Passwords**: Use SSH keys like a real human. If you *must* use passwords, run `openssl passwd -6` to get a hash. Paste the hash. Not the password. Seriously.
+7. **You’re on your Proxmox host, right?** If not, stop. Reassess your life.
+8. **Download the images**: `./sync-cloud-images.py` grabs everything in `cloud-init.conf`. Don’t like my distro picks? Edit the file. Don’t whine.
+9. **Dry run it**: `--dry-run` shows exactly what will happen. No surprises. No excuses.
+10. **Test output**: `--test-output` dumps generated files to `test-output/`. Nervous? Copy-paste the lines from `proxmox-commands.txt` manually. Control freaks welcome.
+11. **Run the damn script**: That’s why this exists. Start with:
+
+    ```bash
+    ./cloud-init-create.sh --list
+    ```
+
+    Then hit it with:
+
+    ```bash
+    ./cloud-init-create.sh --distro debian-12
+    ```
+
+    Sit back. Watch the magic.
 
 
 ## Repository Layout
