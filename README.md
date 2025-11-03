@@ -17,6 +17,8 @@ Helper scripts for building reusable Proxmox cloud-init templates from upstream 
 - Generates cloud-init snippets composed from a base snippet, per-template fragments, and `conf/users-config.yaml`.
 - Creates or refreshes Proxmox templates by destroying any existing VM with the configured ID, importing the image, resizing disks, applying tags, and wiring cloud-init (`cloud-init-create.sh`).
 
+> **Disclaimer:** This repo is provided as-is. If it breaks, you get to keep all the pieces. PRs welcome, but I'm not your sysadmin.
+
 ## Prerequisites
 
 - Proxmox host with the `qm` CLI available.
