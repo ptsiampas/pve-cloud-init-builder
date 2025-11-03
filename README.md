@@ -1,5 +1,9 @@
 # ProxMox cloud-init template Generator
 
+> ⚠️ **WARNING: THIS SCRIPT DESTROYS VMs**  
+> Running `cloud-init-create.sh` will delete existing VMs with the configured `VMID`.  
+> Always run with `--dry-run` or `--test-output` first unless you *like* chaos.
+
 Helper scripts for building reusable Proxmox cloud-init templates from upstream cloud images. The tooling keeps local cloud images up to date, assembles a merged cloud-init snippet (including user accounts), and drives `qm` to create or refresh templates with consistent settings.
 
 ## Credits
