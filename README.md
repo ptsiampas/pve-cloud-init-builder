@@ -3,6 +3,7 @@
 Helper scripts for building reusable Proxmox cloud-init templates from upstream cloud images. The tooling keeps local cloud images up to date, assembles a merged cloud-init snippet (including user accounts), and drives `qm` to create or refresh templates with consistent settings.
 
 ## Todo Items
+- [ ] Populate the section *Getting Started* with commands and instructions from cloning the directory to adding the keys and passwords then sync the distrobutions, how to test run, examin the output before actually executing it.
 - [ ] Consider forking this repository for public consumption
 
 ## What This Project Does
@@ -18,13 +19,13 @@ Helper scripts for building reusable Proxmox cloud-init templates from upstream 
 - Python 3.9+ (standard library only; see `requirements.txt`).
 - Network access for downloading cloud images and GPG keys.
 - `/var/lib/vz/snippets` writable (or set `SNIPPET_DIR` to an alternate path).
-
-## Intial setup
-The base Proxmox server dosn't come with git, python, python-venv or pip, you need to install all for this to work.
-
+- The base Proxmox server dosn't come with git, python, python-venv or pip, you need to install all for this script to work.
 ```bash
 apt update && apt install git python-is-python3 pip python3.13-venv -y
 ```
+
+## Getting started
+
 
 ## Repository Layout
 
