@@ -9,8 +9,15 @@ DISTRO_CONFIG_ROOT="${CONFIG_DIR}"
 USERS_CONFIG_FILE="${CONFIG_DIR}/users-config.yaml"
 SNIPPET_DIR="${SNIPPET_DIR:-/var/lib/vz/snippets}"
 
+DRY_RUN=0
+TEST_OUTPUT=0
+TEST_OUTPUT_DIR="${SCRIPT_DIR}/test-output"
+EXECUTE_QM_COMMANDS=1
+EXECUTE_COMMANDS=1
+
 declare -a DISTRO_LIST=()
 declare -A DISTRO_CONFIG_FILES=()
+declare -a QM_COMMANDS=()
 
 if [[ ! -f "${CONFIG_FILE}" ]]; then
   echo "Config file not found: ${CONFIG_FILE}" >&2
@@ -187,6 +194,9 @@ Usage: $(basename "$0") --distro <name> [options]
 Options:
   --distro <name>   Build the template for the named distro.
   --list            List available distros.
+  --dry-run         Print qm commands without executing them.
+  --test-output, -to
+                    Generate outputs under test-output and skip qm execution.
   --help            Show this help message.
 
 Environment:
@@ -228,6 +238,11 @@ write_snippet() {
   local -a fragment_files=("$@")
   local -a runcmd_commands=()
   local fragment
+
+  if (( DRY_RUN && ! TEST_OUTPUT )); then
+    echo "Dry run mode: skipping snippet generation for ${snippet_path}"
+    return 0
+  fi
 
   if [[ -n "${base_snippet}" && "${base_snippet}" != /* ]]; then
     base_snippet="${CONFIG_DIR}/${base_snippet}"
@@ -272,16 +287,56 @@ write_snippet() {
   } | tee "${snippet_path}" > /dev/null
 }
 
+format_qm_command() {
+  local -a command_parts=("qm" "$@")
+  local formatted=""
+  printf -v formatted '%q ' "${command_parts[@]}"
+  formatted="${formatted% }"
+  printf '%s' "${formatted}"
+}
+
+format_command() {
+  local formatted=""
+  printf -v formatted '%q ' "$@"
+  formatted="${formatted% }"
+  printf '%s' "${formatted}"
+}
+
+run_command() {
+  local formatted
+  formatted="$(format_command "$@")"
+  echo "+ ${formatted}"
+  if (( EXECUTE_COMMANDS )); then
+    "$@"
+  fi
+}
+
+record_qm_command() {
+  local formatted
+  formatted="$(format_qm_command "$@")"
+  echo "+ ${formatted}"
+  QM_COMMANDS+=("${formatted}")
+}
+
 run_qm() {
   local cmd="$1"
   shift
-  echo "+ qm ${cmd} $*"
-  qm "${cmd}" "$@"
+  record_qm_command "${cmd}" "$@"
+  if (( EXECUTE_QM_COMMANDS )); then
+    qm "${cmd}" "$@"
+  else
+    return 0
+  fi
 }
 
 destroy_vm_if_exists() {
   local vmid="$1"
-  if qm status "${vmid}" &> /dev/null; then
+  record_qm_command status "${vmid}"
+  if (( EXECUTE_QM_COMMANDS )); then
+    if qm status "${vmid}" &> /dev/null; then
+      run_qm destroy "${vmid}"
+    fi
+  else
     run_qm destroy "${vmid}"
   fi
 }
@@ -301,6 +356,19 @@ main() {
         list_distros
         exit 0
         ;;
+      --dry-run)
+        DRY_RUN=1
+        EXECUTE_QM_COMMANDS=0
+        EXECUTE_COMMANDS=0
+        shift
+        ;;
+      --test-output|-to)
+        TEST_OUTPUT=1
+        DRY_RUN=1
+        EXECUTE_QM_COMMANDS=0
+        EXECUTE_COMMANDS=0
+        shift
+        ;;
       --help|-h)
         usage
         exit 0
@@ -312,6 +380,17 @@ main() {
         ;;
     esac
   done
+
+  if (( DRY_RUN )); then
+    echo "Dry run mode: qm commands will not be executed."
+  fi
+  if (( TEST_OUTPUT )); then
+    echo "Test output mode: outputs will be written to ${TEST_OUTPUT_DIR}"
+    if [[ -d "${TEST_OUTPUT_DIR}" ]]; then
+      find "${TEST_OUTPUT_DIR}" -mindepth 1 -delete
+    fi
+    mkdir -p "${TEST_OUTPUT_DIR}"
+  fi
 
   if [[ -z "${distro}" ]]; then
     usage
@@ -361,7 +440,11 @@ main() {
   fi
 
   local image_file="${IMAGE_DIR}/${image_name}"
-  local snippet_path="${SNIPPET_DIR}/${snippet_file}"
+  local snippet_output_dir="${SNIPPET_DIR}"
+  if (( TEST_OUTPUT )); then
+    snippet_output_dir="${TEST_OUTPUT_DIR}"
+  fi
+  local snippet_path="${snippet_output_dir}/${snippet_file}"
 
   local -a snippet_fragments=()
   local yaml_file nullglob_was_set=0
@@ -378,12 +461,10 @@ main() {
 
   destroy_vm_if_exists "${vmid}"
 
-  mkdir -p "${IMAGE_DIR}"
-  rm -f "${image_file}"
-  echo "+ wget ${image_url} -O ${image_file}"
-  wget -q "${image_url}" -O "${image_file}"
-  echo "+ qemu-img resize ${image_file} ${resize_size}"
-  qemu-img resize "${image_file}" "${resize_size}"
+  run_command mkdir -p "${IMAGE_DIR}"
+  run_command rm -f "${image_file}"
+  run_command wget -q "${image_url}" -O "${image_file}"
+  run_command qemu-img resize "${image_file}" "${resize_size}"
 
   local -a cpu_args=()
   build_cpu_args distro_cfg cpu_args
@@ -431,6 +512,18 @@ main() {
   #run_qm set "${vmid}" --sshkeys "${HOME}/.ssh/authorized_keys"
   run_qm set "${vmid}" --ipconfig0 ip=dhcp
   run_qm template "${vmid}"
+
+  if (( TEST_OUTPUT )); then
+    mkdir -p "${TEST_OUTPUT_DIR}"
+    local commands_file="${TEST_OUTPUT_DIR}/proxmox-commands.txt"
+    if ((${#QM_COMMANDS[@]} > 0)); then
+      printf "%s\n" "${QM_COMMANDS[@]}" > "${commands_file}"
+    else
+      : > "${commands_file}"
+    fi
+    echo "Proxmox command list written to ${commands_file}"
+    echo "Cloud-init snippet written to ${snippet_path}"
+  fi
 }
 
 main "$@"
