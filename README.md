@@ -2,6 +2,9 @@
 
 Helper scripts for building reusable Proxmox cloud-init templates from upstream cloud images. The tooling keeps local cloud images up to date, assembles a merged cloud-init snippet (including user accounts), and drives `qm` to create or refresh templates with consistent settings.
 
+## Todo Items
+- [ ] Consider forking this repository for public consumption
+
 ## What This Project Does
 
 - Downloads the latest cloud images defined in `conf/cloud-init.conf`, verifying them against published checksums (`sync-cloud-images.py`).
@@ -15,6 +18,13 @@ Helper scripts for building reusable Proxmox cloud-init templates from upstream 
 - Python 3.9+ (standard library only; see `requirements.txt`).
 - Network access for downloading cloud images and GPG keys.
 - `/var/lib/vz/snippets` writable (or set `SNIPPET_DIR` to an alternate path).
+
+## Intial setup
+The base Proxmox server dosn't come with git, python, python-venv or pip, you need to install all for this to work.
+
+```bash
+apt update && apt install git python-is-python3 pip python3.13-venv -y
+```
 
 ## Repository Layout
 
@@ -80,6 +90,7 @@ Helper scripts for building reusable Proxmox cloud-init templates from upstream 
 - **User accounts (`conf/users-config.yaml`)**
   - Injected verbatim into every generated snippet.
   - Update SSH keys, passwords, and sudo rules here before rebuilding templates.
+  - Generate new password hashes with `openssl passwd -6 'plaintext-password'` (omit the argument to be prompted securely).
 
 - **Shared URL constants (`conf/cloud-init-urls.conf`)**
   - Sourced by `cloud-init-create.sh`; referenced in some snippet fragments (Docker/NVIDIA repos, forum link comment).
@@ -112,4 +123,3 @@ Helper scripts for building reusable Proxmox cloud-init templates from upstream 
 - Validate that `local-zfs` (or whatever storage you expect) exists; adjust the config if storage names changed.
 - Run `--test-output` first if you only want to review commands/snippets without touching Proxmox resources.
 - Keep `conf/cloud-init-urls.conf` URLs fresh (Docker/NVIDIA keys tend to rotate).
-

@@ -7,6 +7,7 @@ IMAGE_DIR="${IMAGE_DIR:-${SCRIPT_DIR}/images}"
 CONFIG_DIR="${SCRIPT_DIR}/conf"
 DISTRO_CONFIG_ROOT="${CONFIG_DIR}"
 USERS_CONFIG_FILE="${CONFIG_DIR}/users-config.yaml"
+USERS_ENV_FILE="${USERS_ENV_FILE:-${CONFIG_DIR}/users.env}"
 SNIPPET_DIR="${SNIPPET_DIR:-/var/lib/vz/snippets}"
 
 DRY_RUN=0
@@ -14,6 +15,7 @@ TEST_OUTPUT=0
 TEST_OUTPUT_DIR="${SCRIPT_DIR}/test-output"
 EXECUTE_QM_COMMANDS=1
 EXECUTE_COMMANDS=1
+USERS_ENV_LOADED=0
 
 declare -a DISTRO_LIST=()
 declare -A DISTRO_CONFIG_FILES=()
@@ -103,6 +105,93 @@ load_distro_config() {
       printf '%s=%s\n' "$key" "$value"
     done
   )
+}
+
+load_users_env() {
+  if (( USERS_ENV_LOADED )); then
+    return
+  fi
+
+  if [[ -f "${USERS_ENV_FILE}" ]]; then
+    set -a
+    # shellcheck disable=SC1090
+    source "${USERS_ENV_FILE}"
+    set +a
+  fi
+
+  USERS_ENV_LOADED=1
+}
+
+render_users_config() {
+  local file="${USERS_CONFIG_FILE}"
+
+  if [[ ! -f "${file}" ]]; then
+    echo "users: []"
+    return
+  fi
+
+  load_users_env
+
+  local -a tokens=()
+  mapfile -t tokens < <(grep -o '\${[A-Za-z_][A-Za-z0-9_]*}' "${file}" | sort -u || true)
+
+  if (( ${#tokens[@]} == 0 )); then
+    cat "${file}"
+    return
+  fi
+
+  local -a names=()
+  local token name
+  for token in "${tokens[@]}"; do
+    name="${token#\${}"
+    name="${name%\}}"
+    names+=("${name}")
+  done
+
+  local -a missing=()
+  local value
+  for name in "${names[@]}"; do
+    value="${!name-}"
+    if [[ -z "${value}" ]]; then
+      missing+=("${name}")
+    fi
+  done
+
+  if (( ${#missing[@]} )); then
+    echo "Missing required values for users-config placeholders: ${missing[*]}" >&2
+    exit 1
+  fi
+
+  if command -v envsubst >/dev/null 2>&1; then
+    local filter
+    filter="$(printf '\\$%s ' "${names[@]}")"
+    filter="${filter% }"
+    envsubst "${filter}" < "${file}"
+    return
+  fi
+
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "${file}" <<'PY'
+import os
+import re
+import sys
+
+path = sys.argv[1]
+with open(path, 'r', encoding='utf-8') as fh:
+    content = fh.read()
+
+pattern = re.compile(r'\${([A-Za-z_][A-Za-z0-9_]*)}')
+
+def replace(match):
+    name = match.group(1)
+    return os.environ.get(name, '')
+
+sys.stdout.write(pattern.sub(replace, content))
+PY
+    return
+  fi
+
+  cat "${file}"
 }
 
 build_cpu_args() {
@@ -285,11 +374,7 @@ write_snippet() {
 
   {
     echo "#cloud-config"
-    if [[ -f "${USERS_CONFIG_FILE}" ]]; then
-      cat "${USERS_CONFIG_FILE}"
-    else
-      echo "users: []"
-    fi
+    render_users_config
 
     echo
 

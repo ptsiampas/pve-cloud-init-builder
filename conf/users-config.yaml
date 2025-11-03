@@ -5,9 +5,9 @@ users:
     groups: users, sudo
     shell: /bin/bash
     ssh_authorized_keys:
-      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHx3MgtqPEUlJPM6BQ0pJGjRSR8cRJWUuHHHqeiQLZ3J peter@tsiampas.com
-      - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC9DsHgjgAlMQnWrKskPWxbQTY3JBFMGiLN+wKtFaNWFYi4iMkt1Ae8NLnNQw3VZi9BhaeRpgTXRYoN1RgJ6TcSUl+mFMwItQ7OWAG0v4CT3GxluyQjDLvOtT6U3noDKxa2WLFN8vczd7AERqAd7ZmgS+2PBllKeeiJWbk1p3zsodnFtzBJ7qKSJ5Quo7peLbGYqNwKhlT8qOMLMYj4FZPdUORiWps+uSDv610HPdzzur3TAkYLTrWYPSKQInfRg37mP41BYbJY7CZ/zuMZT+5XhkG2CRbSO8+Lg2Fsn1tVljcdrZBCetgDooLkeBeKNHStm0urV6QSEIIsz96pcTdaMpoanMrV1U4pioGlx8Rno8BOSsm+eoIH4mXHA0FPTyoIn6HtZA3MYtH/0O5M7PZ4SFXZTel8I5uD/HdXwqSY7i34POfjbhBeAgD6IKOreLFH0YSE5Pud8LWlssWgpFn2IvoZosuujqDCVZDi7JkHcw5BikH/BaTgAKr8oOWvsD/+FshRfNFF5x5Y/AzICj+vDUo1kbPDas8ab76zUDIag2sFdgIxOGwLB9J0taJQFGtyh7YznDqsoAd3CZIP7sZO8eb0x8y8EzDBqhkN7Rh8WEdjhKsmdesQQXXaRdpQGvJ1jrCEqqb7n923mRi5pA2/u1hnZQNAav70hgCkWWjeqw== petert@ai-desktop.lan
-    passwd: $6$tm6zU8NQt6.l0m4K$GqWVjqISalcim.QAOt7c64BrBV.D/QfbsVtBnNG3ugZgoumKkrQ2UqNEQpUhhmg5oixkCDhJkg0mUYUCx9O8p/
+      - "${PETERT_SSH_KEY_1}"
+      - "${PETERT_SSH_KEY_2}"
+    passwd: "${PETERT_PASSWORD_HASH}"
     lock_passwd: false
   - name: ansible
     gecos: ansible user
@@ -15,4 +15,4 @@ users:
     groups: users, sudo
     shell: /bin/bash
     ssh_authorized_keys:
-      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFeLJ/XtaXbHknGw+76kvJ9TLtGSiNOmNbmE4iRLMTl3 awx-remote
+      - "${ANSIBLE_SSH_KEY_1}"

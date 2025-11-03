@@ -3,3 +3,4 @@ __pycache__/
 *.pyc
 images/
 test-output/
+conf/users.env
