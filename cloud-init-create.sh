@@ -152,6 +152,35 @@ build_net_args() {
   net_args_ref=(--net0 "${net_arg}")
 }
 
+sync_images_for() {
+  local image_name="$1"
+  local sync_script="${SCRIPT_DIR}/sync-cloud-images.py"
+
+  if [[ ! -f "${sync_script}" ]]; then
+    echo "Sync script not found: ${sync_script}" >&2
+    exit 1
+  fi
+
+  local python_exec="${SCRIPT_DIR}/.venv/bin/python"
+  if [[ ! -x "${python_exec}" ]]; then
+    python_exec="$(command -v python3 || true)"
+    if [[ -z "${python_exec}" ]]; then
+      echo "python3 not found and no virtual environment available" >&2
+      exit 1
+    fi
+  fi
+
+  local distro=""
+  local release=""
+  IFS='/' read -r distro release _ <<< "${image_name}"
+  if [[ -z "${distro}" || -z "${release}" ]]; then
+    echo "LOCAL_IMAGE_FILE_NAME must be of the form <distro>/<release>/<file>; got '${image_name}'" >&2
+    exit 1
+  fi
+
+  run_command "${python_exec}" "${sync_script}" --distro "${distro}" --release "${release}"
+}
+
 collect_runcmd_entries() {
   local file="$1"
   local -n dest_ref="$2"
@@ -218,16 +247,6 @@ validate_distro() {
     echo "Use --list to see supported distros." >&2
     exit 1
   fi
-}
-
-lookup_url() {
-  local key="$1"
-  local value="${!key:-}"
-  if [[ -z "${value}" ]]; then
-    echo "Missing URL configuration for ${key} in ${CONFIG_FILE}" >&2
-    exit 1
-  fi
-  printf "%s" "${value}"
 }
 
 write_snippet() {
@@ -421,8 +440,6 @@ main() {
   local snippet_file="${distro_cfg[SNIPPET_FILE]:-}"
   local base_snippet="${distro_cfg[BASE_SNIPPET_FILE]:-}"
   local reference_comment="${distro_cfg[REFERENCE_URL_COMMENT]:-false}"
-  local image_url="${distro_cfg[IMAGE_URL]:-}"
-  local image_url_key="${distro_cfg[IMAGE_URL_KEY]:-}"
   local tags="${distro_cfg[TAGS]:-}"
 
   if [[ -z "${vmid}" || -z "${storage}" || -z "${image_name}" || -z "${resize_size}" || -z "${template_name}" || -z "${snippet_file}" ]]; then
@@ -430,16 +447,20 @@ main() {
     exit 1
   fi
 
-  if [[ -z "${image_url}" && -n "${image_url_key}" ]]; then
-    image_url="$(lookup_url "${image_url_key}")"
+  local source_image="${IMAGE_DIR}/${image_name}"
+  if (( EXECUTE_COMMANDS )); then
+    sync_images_for "${image_name}"
+    if [[ ! -f "${source_image}" ]]; then
+      echo "Source image not found for ${distro}: ${source_image}" >&2
+      echo "Run ${SCRIPT_DIR}/sync-cloud-images.py to download or refresh cloud images." >&2
+      exit 1
+    fi
+  else
+    if [[ ! -f "${source_image}" ]]; then
+      echo "Dry run: skipping image sync for ${distro}; expected image location ${source_image}" >&2
+    fi
   fi
 
-  if [[ -z "${image_url}" ]]; then
-    echo "Missing IMAGE_URL (or IMAGE_URL_KEY) for ${distro} in ${config_file}" >&2
-    exit 1
-  fi
-
-  local image_file="${IMAGE_DIR}/${image_name}"
   local snippet_output_dir="${SNIPPET_DIR}"
   if (( TEST_OUTPUT )); then
     snippet_output_dir="${TEST_OUTPUT_DIR}"
@@ -462,9 +483,6 @@ main() {
   destroy_vm_if_exists "${vmid}"
 
   run_command mkdir -p "${IMAGE_DIR}"
-  run_command rm -f "${image_file}"
-  run_command wget -q "${image_url}" -O "${image_file}"
-  run_command qemu-img resize "${image_file}" "${resize_size}"
 
   local -a cpu_args=()
   build_cpu_args distro_cfg cpu_args
@@ -495,9 +513,10 @@ main() {
 
   run_qm create "${create_args[@]}"
 
-  run_qm importdisk "${vmid}" "${image_file}" "${storage}"
+  run_qm importdisk "${vmid}" "${source_image}" "${storage}"
   run_qm set "${vmid}" --scsihw virtio-scsi-pci --virtio0 "${storage}:vm-${vmid}-disk-1,discard=on"
   run_qm set "${vmid}" --boot order=virtio0
+  run_qm disk resize "${vmid}" virtio0 "${resize_size}"
   run_qm set "${vmid}" --scsi1 "${storage}:cloudinit"
 
   write_snippet "${snippet_path}" "${base_snippet}" "${reference_comment}" "${snippet_fragments[@]}"
